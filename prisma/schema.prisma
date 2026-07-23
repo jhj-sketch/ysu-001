@@ -1,0 +1,368 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  loginId      String    @unique @map("login_id")
+  passwordHash String?   @map("password_hash")
+  name         String
+  email        String    @unique
+  phone        String?
+  roleCode     String    @map("role_code")
+  departmentId String?   @map("department_id")
+  studentId    String?   @unique @map("student_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  department          Department?            @relation(fields: [departmentId], references: [id])
+  student             Student?               @relation(fields: [studentId], references: [id])
+  submissions         Submission[]           @relation("SubmissionCreator")
+  reviews             Submission[]           @relation("SubmissionReviewer")
+  recommendations     ProgramRecommendation[]
+  consultationNotes   ConsultationNote[]
+  importJobs          ImportJob[]
+  auditLogs           AuditLog[]
+  consents            Consent[]
+  registeredRelations FounderCompany[]       @relation("RelationRegistrar")
+
+  @@map("users")
+}
+
+model Department {
+  id             String   @id @default(cuid())
+  collegeName    String?  @map("college_name")
+  departmentCode String   @unique @map("department_code")
+  departmentName String   @map("department_name")
+  officeEmail    String?  @map("office_email")
+  officePhone    String?  @map("office_phone")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  users    User[]
+  students Student[]
+
+  @@map("departments")
+}
+
+model Student {
+  id              String    @id @default(cuid())
+  studentNo       String    @unique @map("student_no")
+  name            String
+  departmentId    String    @map("department_id")
+  studentStatus   String    @map("student_status")
+  admissionYear   Int?      @map("admission_year")
+  graduationYear  Int?      @map("graduation_year")
+  email           String?
+  phone           String?
+  birthDate       DateTime? @map("birth_date")
+  dataSource      String    @default("SELF_REPORT") @map("data_source")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  department        Department              @relation(fields: [departmentId], references: [id])
+  user              User?
+  founderCompanies  FounderCompany[]
+  submissions       Submission[]
+  surveyTargets     SurveyTarget[]
+  consents          Consent[]
+  recommendations   ProgramRecommendation[]
+  participations    ProgramParticipation[]
+  consultationNotes ConsultationNote[]
+
+  @@map("students")
+}
+
+model Company {
+  id                        String    @id @default(cuid())
+  companyName               String    @map("company_name")
+  businessRegistrationNo    String?   @unique @map("business_registration_no")
+  corporationRegistrationNo String?   @map("corporation_registration_no")
+  representativeName        String?   @map("representative_name")
+  industry                  String?
+  businessType              String?   @map("business_type")
+  industryCode              String?   @map("industry_code")
+  address                   String?
+  postalCode                String?   @map("postal_code")
+  foundedDate               DateTime? @map("founded_date")
+  businessStatus            String    @default("OPERATING") @map("business_status")
+  homepageUrl               String?   @map("homepage_url")
+  revenue                   Float?
+  capital                   Float?
+  employeeCount             Int?      @map("employee_count")
+  completenessScore         Int       @default(0) @map("completeness_score")
+  lastVerifiedAt            DateTime? @map("last_verified_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  founderCompanies FounderCompany[]
+  submissions      Submission[]
+  attachments      Attachment[]
+  metrics          CompanyMetric[]
+
+  @@map("companies")
+}
+
+model FounderCompany {
+  id                   String    @id @default(cuid())
+  studentId            String    @map("student_id")
+  companyId            String    @map("company_id")
+  founderRole          String    @default("CEO") @map("founder_role")
+  ownershipRatio       Float?    @map("ownership_ratio")
+  joinedDate           DateTime? @map("joined_date")
+  leftDate             DateTime? @map("left_date")
+  pipelineStatus       String    @default("DISCOVERED") @map("pipeline_status")
+  verificationStatus   String    @default("PENDING") @map("verification_status")
+  officialStatIncluded Boolean   @default(false) @map("official_stat_included")
+  registeredByUserId   String?   @map("registered_by_user_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  student      Student  @relation(fields: [studentId], references: [id])
+  company      Company  @relation(fields: [companyId], references: [id])
+  registeredBy User?    @relation("RelationRegistrar", fields: [registeredByUserId], references: [id])
+
+  @@unique([studentId, companyId])
+  @@map("founder_companies")
+}
+
+model Submission {
+  id               String    @id @default(cuid())
+  studentId        String    @map("student_id")
+  companyId        String?   @map("company_id")
+  channel          String
+  reviewStatus     String    @default("DRAFT") @map("review_status")
+  reviewNote       String?   @map("review_note")
+  createdByUserId  String    @map("created_by_user_id")
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  submittedAt      DateTime? @map("submitted_at")
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  student    Student  @relation(fields: [studentId], references: [id])
+  company    Company? @relation(fields: [companyId], references: [id])
+  createdBy  User     @relation("SubmissionCreator", fields: [createdByUserId], references: [id])
+  reviewedBy User?    @relation("SubmissionReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@map("submissions")
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("DRAFT")
+  startDate   DateTime? @map("start_date")
+  dueDate     DateTime? @map("due_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  targets SurveyTarget[]
+
+  @@map("campaigns")
+}
+
+model SurveyTarget {
+  id         String   @id @default(cuid())
+  campaignId String   @map("campaign_id")
+  studentId  String   @map("student_id")
+  status     String   @default("NOT_STARTED")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  student  Student         @relation(fields: [studentId], references: [id])
+  response SurveyResponse?
+
+  @@unique([campaignId, studentId])
+  @@map("survey_targets")
+}
+
+model SurveyResponse {
+  id                   String   @id @default(cuid())
+  targetId             String   @unique @map("target_id")
+  postGraduationStatus String   @map("post_graduation_status")
+  isFounder            Boolean  @default(false) @map("is_founder")
+  companyId            String?  @map("company_id")
+  note                 String?
+  respondedByUserId    String?  @map("responded_by_user_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  target SurveyTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@map("survey_responses")
+}
+
+model Program {
+  id               String    @id @default(cuid())
+  name             String
+  description      String?
+  targetStatuses   String    @map("target_statuses")
+  industryKeywords String?   @map("industry_keywords")
+  applyUrl         String?   @map("apply_url")
+  applyStartDate   DateTime? @map("apply_start_date")
+  applyEndDate     DateTime? @map("apply_end_date")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  recommendations ProgramRecommendation[]
+  participations  ProgramParticipation[]
+
+  @@map("programs")
+}
+
+model ProgramRecommendation {
+  id              String   @id @default(cuid())
+  programId       String   @map("program_id")
+  studentId       String   @map("student_id")
+  recommendedById String?  @map("recommended_by_id")
+  reason          String?
+  guidedAt        DateTime @default(now()) @map("guided_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  program       Program @relation(fields: [programId], references: [id])
+  student       Student @relation(fields: [studentId], references: [id])
+  recommendedBy User?   @relation(fields: [recommendedById], references: [id])
+
+  @@map("program_recommendations")
+}
+
+model ProgramParticipation {
+  id                  String    @id @default(cuid())
+  programId           String    @map("program_id")
+  studentId           String    @map("student_id")
+  applicationStatus   String    @default("NOT_APPLIED") @map("application_status")
+  participationStatus String    @default("NOT_PARTICIPATED") @map("participation_status")
+  appliedAt           DateTime? @map("applied_at")
+  participatedAt      DateTime? @map("participated_at")
+  note                String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  program Program @relation(fields: [programId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([programId, studentId])
+  @@map("program_participations")
+}
+
+model ConsultationNote {
+  id        String   @id @default(cuid())
+  studentId String   @map("student_id")
+  authorId  String   @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id])
+  author  User    @relation(fields: [authorId], references: [id])
+
+  @@map("consultation_notes")
+}
+
+model CompanyMetric {
+  id            String   @id @default(cuid())
+  companyId     String   @map("company_id")
+  metricYear    Int      @map("metric_year")
+  revenue       Float?
+  capital       Float?
+  employeeCount Int?     @map("employee_count")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, metricYear])
+  @@map("company_metrics")
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  companyId    String?  @map("company_id")
+  studentId    String?  @map("student_id")
+  fileName     String   @map("file_name")
+  filePath     String   @map("file_path")
+  mimeType     String?  @map("mime_type")
+  fileSize     Int?     @map("file_size")
+  category     String   @default("OTHER")
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@map("attachments")
+}
+
+model Consent {
+  id          String   @id @default(cuid())
+  studentId   String   @map("student_id")
+  userId      String?  @map("user_id")
+  consentType String   @map("consent_type")
+  agreed      Boolean  @default(true)
+  agreedAt    DateTime @default(now()) @map("agreed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@map("consents")
+}
+
+model ImportJob {
+  id            String    @id @default(cuid())
+  fileName      String    @map("file_name")
+  status        String    @default("PENDING")
+  columnMapping String?   @map("column_mapping")
+  totalRows     Int       @default(0) @map("total_rows")
+  successRows   Int       @default(0) @map("success_rows")
+  errorRows     Int       @default(0) @map("error_rows")
+  createdById   String    @map("created_by_id")
+  executedAt    DateTime? @map("executed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  createdBy User        @relation(fields: [createdById], references: [id])
+  rows      ImportRow[]
+
+  @@map("import_jobs")
+}
+
+model ImportRow {
+  id           String  @id @default(cuid())
+  importJobId  String  @map("import_job_id")
+  rowNumber    Int     @map("row_number")
+  rawData      String  @map("raw_data")
+  status       String  @default("PENDING")
+  errorMessage String? @map("error_message")
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@map("import_rows")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  detail     String?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
