@@ -57,3 +57,6 @@ uploads/
 .vscode/
 !.vscode/extensions.json
 .cursor/
+
+.vercel
+.env*

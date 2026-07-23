@@ -19,12 +19,12 @@ type CompanyLike = {
   businessType?: string | null;
 };
 
-export function matchPrograms(
-  programs: ProgramLike[],
+export function matchPrograms<T extends ProgramLike>(
+  programs: T[],
   student: StudentLike,
   company?: CompanyLike | null,
   now = new Date(),
-) {
+): T[] {
   return programs.filter((p) => {
     if (!p.isActive) return false;
 

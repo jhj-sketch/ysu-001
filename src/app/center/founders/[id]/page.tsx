@@ -29,8 +29,20 @@ export default async function FounderDetailPage({ params }: Params) {
   });
   if (!founder) notFound();
 
-  const programs = await prisma.program.findMany({ where: { isActive: true } });
+  const [programs, consentAttachments] = await Promise.all([
+    prisma.program.findMany({ where: { isActive: true } }),
+    prisma.attachment.findMany({
+      where: {
+        studentId: founder.studentId,
+        category: "PRIVACY_CONSENT",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
   const suggested = matchPrograms(programs, founder.student, founder.company);
+  const licenseAttachments = founder.company.attachments.filter(
+    (a) => a.category !== "PRIVACY_CONSENT",
+  );
 
   return (
     <div>
@@ -62,9 +74,30 @@ export default async function FounderDetailPage({ params }: Params) {
             <div>{founder.company.revenue?.toLocaleString() ?? "-"}</div>
           </dl>
           <div className="mt-4 border-t border-slate-100 pt-3">
+            <div className="mb-2 text-sm font-medium text-slate-800">개인정보 활용 동의서</div>
+            <ul className="mb-4 space-y-1 text-sm">
+              {consentAttachments.map((a) => (
+                <li key={a.id}>
+                  <a
+                    href={`/api/files/${a.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-teal-800 hover:underline"
+                  >
+                    {a.fileName}
+                  </a>
+                  <span className="ml-2 text-xs text-slate-500">
+                    {a.createdAt.toISOString().slice(0, 10)}
+                  </span>
+                </li>
+              ))}
+              {!consentAttachments.length && (
+                <li className="text-slate-500">동의서 첨부 없음</li>
+              )}
+            </ul>
             <div className="mb-2 text-sm font-medium text-slate-800">사업자등록증 / 증빙</div>
             <ul className="space-y-1 text-sm">
-              {founder.company.attachments.map((a) => (
+              {licenseAttachments.map((a) => (
                 <li key={a.id}>
                   <a
                     href={`/api/files/${a.id}`}
@@ -79,7 +112,7 @@ export default async function FounderDetailPage({ params }: Params) {
                   </span>
                 </li>
               ))}
-              {!founder.company.attachments.length && (
+              {!licenseAttachments.length && (
                 <li className="text-slate-500">첨부 파일 없음</li>
               )}
             </ul>

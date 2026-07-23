@@ -13,6 +13,7 @@ export default async function StudentRegisterPage() {
     <div>
       <PageHeader title="내 창업정보 등록" description="본인 학번으로 창업기업을 등록합니다." />
       <FounderRegisterForm
+        consentMode="self"
         lockStudentNo
         defaults={{
           studentNo: student?.studentNo || session.email,

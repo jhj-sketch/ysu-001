@@ -3,7 +3,7 @@ import { jwtVerify } from "jose";
 import { COOKIE_NAME, type SessionUser } from "@/lib/auth";
 import { ROLE_HOME, type RoleCode } from "@/lib/constants";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/", "/login", "/api/auth/login"];
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET || "dev-session-secret-change-in-production-32chars";
@@ -42,16 +42,12 @@ export async function middleware(req: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const session = await readSession(req);
 
-  if (pathname === "/") {
-    if (!session) {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-    return NextResponse.redirect(new URL(ROLE_HOME[session.roleCode], req.url));
-  }
-
-  if (pathname === "/login") {
+  if (pathname === "/" || pathname === "/login") {
     if (session) {
       return NextResponse.redirect(new URL(ROLE_HOME[session.roleCode], req.url));
+    }
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/login", req.url));
     }
     return NextResponse.next();
   }

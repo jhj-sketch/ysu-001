@@ -16,7 +16,10 @@ export async function GET(_req: Request, { params }: Params) {
   const attachment = await prisma.attachment.findUnique({ where: { id } });
   if (!attachment) return jsonError("File not found", 404);
 
-  if (attachment.companyId) {
+  // Program documents: any logged-in user can view (students need them)
+  if (attachment.programId) {
+    // allowed
+  } else if (attachment.companyId) {
     const company = await prisma.company.findUnique({
       where: { id: attachment.companyId },
       include: {
@@ -28,15 +31,18 @@ export async function GET(_req: Request, { params }: Params) {
       isCenterOrAdmin(session) ||
       company.founderCompanies.some((fc) => canAccessStudent(session, fc.student));
     if (!allowed) return jsonError("Forbidden", 403);
-  } else if (session.roleCode === "STUDENT" && attachment.studentId !== session.studentId) {
-    return jsonError("Forbidden", 403);
-  } else if (!isCenterOrAdmin(session) && session.roleCode !== "DEPT_STAFF") {
+  } else if (attachment.studentId) {
+    const student = await prisma.student.findUnique({ where: { id: attachment.studentId } });
+    if (!student) return jsonError("File not found", 404);
+    if (!canAccessStudent(session, student)) return jsonError("Forbidden", 403);
+  } else if (!isCenterOrAdmin(session)) {
     return jsonError("Forbidden", 403);
   }
 
+  // Keep path joins scoped so Turbopack NFT tracing does not pull the whole repo.
   const absolutePath = path.isAbsolute(attachment.filePath)
     ? attachment.filePath
-    : path.join(process.cwd(), attachment.filePath);
+    : path.join(/* turbopackIgnore: true */ process.cwd(), attachment.filePath);
 
   try {
     await access(absolutePath, constants.R_OK);

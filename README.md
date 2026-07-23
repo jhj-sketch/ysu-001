@@ -49,6 +49,37 @@ npm run dev
 - 프로그램 규칙 추천, 신청·참여·상담 메모
 - 성과보고 XLSX 다운로드, 감사 로그
 
+## Vercel 배포 (CLI)
+
+Vercel 서버리스 환경에서는 **PostgreSQL**이 필요합니다. (SQLite 파일 DB는 사용할 수 없습니다.)
+
+1. [Neon](https://neon.tech) 또는 Supabase에서 무료 Postgres를 만들고 `DATABASE_URL`을 복사합니다.
+2. Vercel 로그인 후 배포합니다.
+
+```bash
+npx vercel login
+npx vercel link
+npx vercel env add DATABASE_URL
+# Production / Preview / Development 각각에 Postgres URL 입력
+
+npx vercel env add SESSION_SECRET
+# 긴 랜덤 문자열 입력
+
+npx vercel env add NEXT_PUBLIC_APP_URL
+# 배포 후 도메인 (예: https://xxx.vercel.app) — 나중에 수정 가능
+
+npx vercel --prod
+```
+
+배포 후 시드 데이터(데모 계정)가 필요하면:
+
+```bash
+# 로컬에서 Production DATABASE_URL로
+DATABASE_URL="postgresql://..." npm run db:seed
+```
+
+참고: 첨부파일은 Vercel에서 `/tmp`에 저장되어 **인스턴스 재시작 시 사라질 수 있습니다**. 운영에서는 Vercel Blob/S3 연동을 권장합니다.
+
 ## GitHub로 관리하기
 
 이 폴더는 Git 저장소로 초기화되어 있습니다. `.env`, `node_modules`, 로컬 DB, 업로드 파일은 `.gitignore`로 제외됩니다.

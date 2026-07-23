@@ -12,8 +12,12 @@ export default async function DepartmentRegisterPage({
 
   return (
     <div>
-      <PageHeader title="학과 창업자 등록" description="소속 학과 학생·졸업생 창업정보를 입력합니다." />
+      <PageHeader
+        title="학과 창업자 등록"
+        description="소속 학과 학생·졸업생 창업정보를 입력합니다. 개인정보 활용 동의서는 학생에게 받아 첨부하세요."
+      />
       <FounderRegisterForm
+        consentMode="proxy"
         defaults={{
           studentNo: sp.studentNo,
           departmentId: session.departmentId || undefined,

@@ -9,6 +9,7 @@ type Dept = { id: string; departmentName: string };
 export function FounderRegisterForm({
   defaults,
   lockStudentNo,
+  consentMode = "self",
 }: {
   defaults?: Partial<{
     studentNo: string;
@@ -19,13 +20,17 @@ export function FounderRegisterForm({
     phone: string;
   }>;
   lockStudentNo?: boolean;
+  /** self: student checks consent. proxy: staff uploads signed consent form. */
+  consentMode?: "self" | "proxy";
 }) {
   const router = useRouter();
+  const isProxy = consentMode === "proxy";
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [message, setMessage] = useState("");
   const [dup, setDup] = useState("");
   const [loading, setLoading] = useState(false);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [consentFile, setConsentFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     studentNo: defaults?.studentNo || "",
     name: defaults?.name || "",
@@ -44,7 +49,7 @@ export function FounderRegisterForm({
     capital: "",
     employeeCount: "",
     founderRole: "CEO",
-    consentPrivacy: true,
+    consentPrivacy: !isProxy,
     reviewStatus: "SUBMITTED" as "DRAFT" | "SUBMITTED",
   });
 
@@ -73,15 +78,42 @@ export function FounderRegisterForm({
     setDup(parts.length ? parts.join(" · ") : "중복 없음");
   }
 
+  async function uploadFile(
+    file: File,
+    opts: { companyId?: string; studentId?: string; category: string },
+  ) {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (opts.companyId) fd.append("companyId", opts.companyId);
+    if (opts.studentId) fd.append("studentId", opts.studentId);
+    fd.append("category", opts.category);
+    const uploadRes = await fetch("/api/files/upload", { method: "POST", body: fd });
+    return uploadRes.json();
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
+
+    if (isProxy && !consentFile) {
+      setLoading(false);
+      setMessage("학생에게 받은 개인정보 활용 동의서를 첨부해 주세요.");
+      return;
+    }
+    if (!isProxy && !form.consentPrivacy) {
+      setLoading(false);
+      setMessage("개인정보 수집·이용에 동의해 주세요.");
+      return;
+    }
+
     const res = await fetch("/api/founders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        consentPrivacy: isProxy ? false : form.consentPrivacy,
+        consentViaUpload: isProxy,
         revenue: form.revenue ? Number(form.revenue) : null,
         capital: form.capital ? Number(form.capital) : null,
         employeeCount: form.employeeCount ? Number(form.employeeCount) : null,
@@ -94,27 +126,46 @@ export function FounderRegisterForm({
       return;
     }
 
-    if (licenseFile && json.data?.company?.id) {
-      const fd = new FormData();
-      fd.append("file", licenseFile);
-      fd.append("companyId", json.data.company.id);
-      fd.append("category", "BUSINESS_LICENSE");
-      const uploadRes = await fetch("/api/files/upload", { method: "POST", body: fd });
-      const uploadJson = await uploadRes.json();
+    const companyId = json.data?.company?.id as string | undefined;
+    const studentId = json.data?.student?.id as string | undefined;
+    const notes: string[] = [];
+
+    if (consentFile && studentId) {
+      const uploadJson = await uploadFile(consentFile, {
+        studentId,
+        companyId,
+        category: "PRIVACY_CONSENT",
+      });
+      if (!uploadJson.success) {
+        setLoading(false);
+        setMessage(`등록은 완료되었으나 동의서 업로드에 실패했습니다: ${uploadJson.message}`);
+        router.refresh();
+        return;
+      }
+      notes.push("개인정보 활용 동의서");
+    }
+
+    if (licenseFile && companyId) {
+      const uploadJson = await uploadFile(licenseFile, {
+        companyId,
+        studentId,
+        category: "BUSINESS_LICENSE",
+      });
       if (!uploadJson.success) {
         setLoading(false);
         setMessage(`등록은 완료되었으나 사업자등록증 업로드에 실패했습니다: ${uploadJson.message}`);
         router.refresh();
         return;
       }
+      notes.push("사업자등록증");
     }
 
-    const uploadedLicense = Boolean(licenseFile);
     setLoading(false);
     setLicenseFile(null);
+    setConsentFile(null);
     setMessage(
-      uploadedLicense
-        ? "등록되었습니다. 사업자등록증이 함께 저장되었습니다."
+      notes.length
+        ? `등록되었습니다. (${notes.join(", ")} 저장됨)`
         : "등록되었습니다.",
     );
     router.refresh();
@@ -123,6 +174,8 @@ export function FounderRegisterForm({
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
+  const canSubmit = isProxy ? Boolean(consentFile) : form.consentPrivacy;
 
   return (
     <Card title="창업정보 등록" description="학생·기업 정보를 분리 저장하며 학번/사업자번호 중복을 검사합니다.">
@@ -233,15 +286,35 @@ export function FounderRegisterForm({
           )}
         </Field>
 
-        <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.consentPrivacy}
-              onChange={(e) => set("consentPrivacy", e.target.checked)}
+        {isProxy ? (
+          <Field label="개인정보 활용 동의서 첨부 (필수)" className="md:col-span-2">
+            <Input
+              type="file"
+              required
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/*"
+              onChange={(e) => setConsentFile(e.target.files?.[0] || null)}
             />
-            개인정보 수집·이용 동의
-          </label>
+            <p className="mt-1 text-xs text-slate-500">
+              학생이 직접 체크할 수 없으므로, 학생에게 받은 동의서(서명본)를 PDF/이미지로 업로드하세요.
+            </p>
+            {consentFile && (
+              <p className="mt-1 text-sm text-teal-700">선택됨: {consentFile.name}</p>
+            )}
+          </Field>
+        ) : (
+          <div className="md:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.consentPrivacy}
+                onChange={(e) => set("consentPrivacy", e.target.checked)}
+              />
+              개인정보 수집·이용 동의
+            </label>
+          </div>
+        )}
+
+        <div className="md:col-span-2 flex flex-wrap items-center gap-3">
           <Select
             className="w-40"
             value={form.reviewStatus}
@@ -253,7 +326,7 @@ export function FounderRegisterForm({
           <Button type="button" variant="secondary" onClick={checkDup}>
             중복 검사
           </Button>
-          <Button disabled={loading || !form.consentPrivacy}>
+          <Button disabled={loading || !canSubmit}>
             {loading ? "저장 중..." : "저장"}
           </Button>
         </div>

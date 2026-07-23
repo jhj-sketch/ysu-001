@@ -3,7 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  // Vercel requires PostgreSQL (SQLite file DB is not durable on serverless).
+  // Local: use Neon/Supabase Postgres URL, or temporary local Postgres.
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -218,6 +220,7 @@ model Program {
 
   recommendations ProgramRecommendation[]
   participations  ProgramParticipation[]
+  attachments     Attachment[]
 
   @@map("programs")
 }
@@ -292,6 +295,7 @@ model Attachment {
   id           String   @id @default(cuid())
   companyId    String?  @map("company_id")
   studentId    String?  @map("student_id")
+  programId    String?  @map("program_id")
   fileName     String   @map("file_name")
   filePath     String   @map("file_path")
   mimeType     String?  @map("mime_type")
@@ -301,6 +305,7 @@ model Attachment {
   createdAt    DateTime @default(now()) @map("created_at")
 
   company Company? @relation(fields: [companyId], references: [id])
+  program Program? @relation(fields: [programId], references: [id])
 
   @@map("attachments")
 }
